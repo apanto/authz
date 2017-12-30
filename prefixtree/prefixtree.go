@@ -31,30 +31,12 @@ func (n *Node) add(k byte) (*Node, error) {
 	child := new(Node)
 	// n.child = append(n.child, child)
 	if k > 127 {
-		return nil, errors.New(fmt.Sprintf("Key %s is not ASCII character", string(k)))
+		return nil, errors.New(fmt.Sprintf("Key %s is not an ASCII character", string(k)))
 	}
 
 	n.child[k] = child
 	return child, nil
 }
-
-// func (n Node) next(k byte) *Node {
-// 	return n.child[k]
-// 	// index := -1
-
-// 	// for i, v := range n.index_child {
-// 	// 	if v == k {
-// 	// 		index = i
-// 	// 		break
-// 	// 	}
-// 	// }
-
-// 	// if index == -1 {
-// 	// 	return nil
-// 	// } else {
-// 	// 	return n.child[index]
-// 	// }
-// }
 
 //Return a *string of a .dot notation of this node and all its children
 //Node adresses are displayed in each node of the graph and keys are
@@ -144,17 +126,21 @@ func (t Tree) Add(key string, index string, value int) {
 }
 
 func (t Tree) Match(key string, index string) (int, error) {
-	// var next *Node
+	var wildcard *Node
 	n := t.root
 
 	for k := 0; n != nil && k < len(key); k++ {
-		next := n.child[key[k]]
-		if next != nil {
-			n = next
-		} else {
-			n = n.child['*']
-			break
+		if n.child['*'] != nil {
+			wildcard = n.child['*']
 		}
+		n = n.child[key[k]]
+		// next := n.child[key[k]]
+		// if next != nil {
+		// 	n = next
+		// } else {
+		// 	n = n.child['*']
+		// 	break
+		// }
 
 		// // if next = n.next(key[i]); next == nil {
 		// index := -1
@@ -185,8 +171,17 @@ func (t Tree) Match(key string, index string) (int, error) {
 		} else {
 			return 0, errors.New("index does not exist")
 		}
-	} else {
-		return 0, errors.New("Key does not match")
+	} else { // n == nil
+		if wildcard != nil {
+			v, exists := wildcard.value[index]
+			if exists {
+				return v, nil // return value stored in wildcard node in the partially matching prefix
+			} else {
+				return 0, errors.New("index does not exist")
+			}
+		} else { // wildcard == nil
+			return 0, errors.New("Key does not match")
+		}
 	}
 }
 

@@ -53,9 +53,9 @@ func Createrulebase(conf *Config) *prefixtree.Tree {
 	return tree
 }
 
-func TreeLookup(subject string, url string, rb *prefixtree.Tree) int {
-	v, _ := rb.Match(url, subject)
-	return v
+func TreeLookup(subject string, url string, rb *prefixtree.Tree) (int, error) {
+	v, err := rb.Match(url, subject)
+	return v, err
 }
 
 func Maprulebase(conf *Config) map[string]map[string]int {

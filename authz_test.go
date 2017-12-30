@@ -3,6 +3,7 @@ package authz
 import (
 	// "fmt"
 	"authz/prefixtree"
+	"encoding/base64"
 	"math/rand"
 	"os"
 	"testing"
@@ -36,6 +37,22 @@ func RandString(n int) string {
 	return string(b)
 }
 
+func GenerateRandomBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	// Note that err == nil only if we read len(b) bytes.
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func GenerateRandomString(s int) (string, error) {
+	b, err := GenerateRandomBytes(s)
+	return base64.URLEncoding.EncodeToString(b), err
+}
+
 func TestMain(m *testing.M) {
 	//setup()
 	//fmt.Printf("m:%#v", m)
@@ -63,7 +80,11 @@ func TestInsertLookupTree(t *testing.T) {
 	subject := "John"
 	url := "www.corpA.com/*"
 
-	if TreeLookup(subject, url, rb) != 1 {
+	val, err := TreeLookup(subject, url, rb)
+	if err != nil {
+		t.Fatalf("Error %s\n", err)
+	}
+	if val != 1 {
 		t.Errorf("Whrong authorization value for %s:%s\n", subject, url)
 	}
 }
@@ -77,7 +98,7 @@ var nr int = 100
 
 func createconfig(ns int, nr int) *Config {
 	var conf Config
-	var sub string
+	var sub, str string
 	var acl map[string]string
 	var r int64
 
@@ -89,10 +110,13 @@ func createconfig(ns int, nr int) *Config {
 		sub = RandString(12)
 		for i := 0; i < nr; i++ {
 			r = src.Int63()
+			str, _ = GenerateRandomString(int(r % 120))
 			if r%1 == 1 {
-				acl[RandString(int(r%120))] = "allow"
+				// acl[RandString(int(r%120))] = "allow"
+				acl[str] = "allow"
 			} else {
-				acl[RandString(int(r%120))] = "deny"
+				// acl[RandString(int(r%120))] = "deny"
+				acl[str] = "deny"
 			}
 		}
 

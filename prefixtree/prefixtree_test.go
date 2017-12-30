@@ -13,7 +13,7 @@ func TestMain(m *testing.M) {
 
 	prefix = append(prefix, "www.corpA.com/*")
 	index = append(index, "John")
-	value = append(value, 100)
+	value = append(value, 200)
 	prefix = append(prefix, "www.corpA.com/*")
 	index = append(index, "Jim")
 	value = append(value, 100)
@@ -44,20 +44,56 @@ func TestGet(t *testing.T) {
 }
 
 func TestMatch(t *testing.T) {
-	url := "www.corpA.com/someresource"
-	subject := index[0]
-	value := value[0]
+	var url, subject string
+	var v, val int
+	var err error
+
+	//this matches the "www.corpA.com/*" rule and should return the value 200
+	url = "www.corpA.com/someresource"
+	subject = index[0]
+	val = value[0]
 	// tree.Add(url, subject, value)
 
-	v, err := tree.Match(url, subject)
+	v, err = tree.Match(url, subject)
 
 	if err != nil {
-		t.Errorf("Error: %s", err)
+		t.Errorf("%s:%s should match but it didn't (Error: %s)", subject, url, err)
 	} else {
-		if v != value {
-			t.Errorf("Value of %s:%s should be %d", url, subject, value)
+		if v != val {
+			t.Errorf("Value of %s:%s should be %d not %d", url, subject, val, v)
 		}
 	}
+
+	//this is a partial match to "www.corpA.com/admin", but a full match to "www.corpA.com/*"
+	//and should return the correct value, 200
+	url = "www.corpA.com/add"
+
+	v, err = tree.Match(url, subject)
+
+	if err != nil {
+		t.Errorf("%s:%s should match but it didn't (Error: %s)", subject, url, err)
+	} else {
+		if v != val {
+			t.Errorf("Value of %s:%s should be %d not %d", url, subject, val, v)
+		}
+	}
+
+	//this matches the "www.corpA.com/admin" and "www.corpA.com/*" rules. Since "www.corpA.com/admin"
+	//is the longest match it should match that and return the value 100
+	url = prefix[2]
+	subject = index[2]
+	val = value[2]
+
+	v, err = tree.Match(url, subject)
+
+	if err != nil {
+		t.Errorf("%s:%s should match but it didn't (Error: %s)", subject, url, err)
+	} else {
+		if v != val {
+			t.Errorf("Value of %s:%s should be %d not %d", url, subject, val, v)
+		}
+	}
+
 }
 
 func TestGetNonexistent(t *testing.T) {

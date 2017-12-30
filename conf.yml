@@ -1,0 +1,12 @@
+---
+title: "This is a test rulebase"
+
+rules:
+  - Subject: Jim
+    ACL:
+      www.corpA.com/*: allow
+      www.corpA.com/admin: deny
+  - Subject: John
+    ACL:
+      www.corpA.com/*: allow
+      www.corpA.com/admin: deny
