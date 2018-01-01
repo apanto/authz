@@ -1,3 +1,4 @@
 *.out
 *.gif
 *.jpeg
+tmp_conf.yml
