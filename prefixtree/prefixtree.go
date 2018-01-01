@@ -1,4 +1,6 @@
 //Package Tree
+//TODO: Adapt the prefixtree to use a custome vocabulary so that if the custom vocabulary has less
+//characters than the ASCII set we ca use smaler child arrays and save memory.
 package prefixtree
 
 import (

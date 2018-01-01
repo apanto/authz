@@ -34,7 +34,6 @@ func TestGet(t *testing.T) {
 	url := prefix[0]
 	subject := index[0]
 	value := value[0]
-	// tree.Add(url, subject, value)
 
 	v, _ := tree.Get(url, subject)
 

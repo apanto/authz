@@ -5,8 +5,9 @@ rules:
   - Subject: Jim
     ACL:
       www.corpA.com/*: allow
-      www.corpA.com/admin: allow
+      www.corpA.com/admin: maybe
   - Subject: John
     ACL:
       www.corpA.com/*: allow
       www.corpA.com/admin: deny
+  

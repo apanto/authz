@@ -1,4 +1,4 @@
-package authz
+package rulebase
 
 import (
 	"authz/prefixtree"
@@ -6,6 +6,12 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	// "os"
+	"errors"
+)
+
+const (
+	DENY int = iota
+	ALLOW
 )
 
 type Config struct {
@@ -16,22 +22,22 @@ type Config struct {
 	}
 }
 
-func Readconfig(filename string) *Config {
+func Readconfig(filename string) (*Config, error) {
 	var conf Config
 	f, err := ioutil.ReadFile(filename)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	err = yaml.Unmarshal(f, &conf)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return &conf
+	return &conf, nil
 }
 
-func Createrulebase(conf *Config) *prefixtree.Tree {
+func Createrulebase(conf *Config) (*prefixtree.Tree, error) {
 	tree := prefixtree.New()
 
 	for _, r := range conf.Rules {
@@ -39,18 +45,17 @@ func Createrulebase(conf *Config) *prefixtree.Tree {
 			// fmt.Printf("user: %s -> url: %s access: %s\n", r.Subject, url, access)
 			a := 0
 			if access == "allow" {
-				a = 1
+				a = ALLOW
 			} else if access == "deny" {
-				a = 0
+				a = DENY
 			} else {
-				a = 0
-				fmt.Errorf("Unknown access value %s\n", access)
+				return nil, errors.New(fmt.Sprintf("Unknown access value %s\n", access))
 			}
 			tree.Add(url, r.Subject, a)
 		}
 	}
 
-	return tree
+	return tree, nil
 }
 
 func TreeLookup(subject string, url string, rb *prefixtree.Tree) (int, error) {
@@ -67,9 +72,9 @@ func Maprulebase(conf *Config) map[string]map[string]int {
 			// fmt.Printf("user: %s -> url: %s access: %s\n", r.Subject, url, access)
 			a := 0
 			if access == "allow" {
-				a = 1
+				a = ALLOW
 			} else if access == "deny" {
-				a = 0
+				a = DENY
 			} else {
 				a = 0
 				fmt.Errorf("Unknown access value %s\n", access)
