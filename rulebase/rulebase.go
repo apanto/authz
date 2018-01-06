@@ -2,11 +2,11 @@ package rulebase
 
 import (
 	"authz/prefixtree"
+	"errors"
 	"fmt"
 	"gopkg.in/yaml.v2"
+	// "encoding/json"
 	"io/ioutil"
-	// "os"
-	"errors"
 )
 
 const (
@@ -14,14 +14,37 @@ const (
 	ALLOW
 )
 
-type Config struct {
-	Title string `yaml:,optional`
-	Rules []struct {
-		Subject string            `yaml:"Subject"`
-		ACL     map[string]string `yaml:"ACL"`
-	}
+const (
+	GET    = 1
+	PUT    = 2
+	POST   = 4
+	DELETE = 8
+	UPDATE = 16
+)
+
+type Rule struct {
+	Url string              `yaml:"Url"`
+	ACL map[string][]string `yaml:"ACL"`
 }
 
+type Config struct {
+	Title string `yaml:"Title,omitempty"`
+	Rules []Rule
+}
+
+//Read a configuration file in YAML format. Example:
+// ---
+// Title: "This is a test rulebase"
+//
+// rules:
+//   - Url: www.corpA.com/*
+//     ACL:
+//       Jim: allow
+//       John: allow
+//   - Url: www.corpA.com/admin
+//     ACL:
+//       Jim: deny
+//       John: allow
 func Readconfig(filename string) (*Config, error) {
 	var conf Config
 	f, err := ioutil.ReadFile(filename)
@@ -37,56 +60,87 @@ func Readconfig(filename string) (*Config, error) {
 	return &conf, nil
 }
 
-func Createrulebase(conf *Config) (*prefixtree.Tree, error) {
+func Create(conf *Config) (*prefixtree.Tree, error) {
 	tree := prefixtree.New()
 
 	for _, r := range conf.Rules {
-		for url, access := range r.ACL {
-			// fmt.Printf("user: %s -> url: %s access: %s\n", r.Subject, url, access)
-			a := 0
-			if access == "allow" {
-				a = ALLOW
-			} else if access == "deny" {
-				a = DENY
-			} else {
-				return nil, errors.New(fmt.Sprintf("Unknown access value %s\n", access))
+		for subject, access := range r.ACL {
+			// fmt.Printf("user: %s -> url: %s access(%T): %s\n", subject, r.Url, access, access)
+			access_flags := 0
+			for _, v := range access {
+				switch v {
+				case "GET":
+					access_flags += GET
+				case "PUT":
+					access_flags += PUT
+				case "POST":
+					access_flags += POST
+				case "DELETE":
+					access_flags += DELETE
+				case "UPDATE":
+					access_flags += UPDATE
+				default:
+					return nil, errors.New(fmt.Sprintf("Unknown HTTP verb %s\n", v))
+				}
 			}
-			tree.Add(url, r.Subject, a)
+			// fmt.Printf("user: %s -> url: %s access: %s\n", subject, r.Url, access_flags)
+			err := tree.AddKey(r.Url, subject, access_flags)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
+	// fmt.Println(*tree.Digraph())
 	return tree, nil
 }
 
+//TODO: make default access policy configurable
 func TreeLookup(subject string, url string, rb *prefixtree.Tree) (int, error) {
 	v, err := rb.Match(url, subject)
-	return v, err
+	if err != nil {
+		if err.Error() == "index does not exist" {
+			//If the subject is not present in the ACL for this prefix the default access policy is DENY
+			return DENY, nil
+		} else {
+			return DENY, err
+		}
+	}
+	return v, nil
 }
 
-func Maprulebase(conf *Config) map[string]map[string]int {
+func Maprulebase(conf *Config) (map[string]map[string]int, error) {
 	rb := make(map[string]map[string]int)
 
 	for _, r := range conf.Rules {
 		m := make(map[string]int)
-		for url, access := range r.ACL {
-			// fmt.Printf("user: %s -> url: %s access: %s\n", r.Subject, url, access)
-			a := 0
-			if access == "allow" {
-				a = ALLOW
-			} else if access == "deny" {
-				a = DENY
-			} else {
-				a = 0
-				fmt.Errorf("Unknown access value %s\n", access)
+		for subject, access := range r.ACL {
+			// fmt.Printf("user: %s -> url: %s access: %s\n", subject, r.Url, access_flags)
+			access_flags := 0
+			for _, v := range access {
+				switch v {
+				case "GET":
+					access_flags += GET
+				case "PUT":
+					access_flags += PUT
+				case "POST":
+					access_flags += POST
+				case "DELETE":
+					access_flags += DELETE
+				case "UPDATE":
+					access_flags += UPDATE
+				default:
+					return nil, errors.New(fmt.Sprintf("Unknown HTTP verb %s\n", v))
+				}
 			}
-			m[url] = a
+			m[subject] = access_flags
 		}
-		rb[r.Subject] = m
+		rb[r.Url] = m
 	}
-
-	return rb
+	// // fmt.Printf("%v\n", rb)
+	return rb, nil
 }
 
 func MapLookup(subject string, url string, rb map[string]map[string]int) int {
-	return rb[subject][url]
+	return rb[url][subject]
 }

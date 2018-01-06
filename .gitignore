@@ -1,4 +1,5 @@
 *.out
 *.gif
 *.jpeg
+*.bak
 tmp_conf.yml

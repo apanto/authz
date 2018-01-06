@@ -6,7 +6,7 @@ package prefixtree
 import (
 	"errors"
 	"fmt"
-	// "log"
+	"regexp"
 )
 
 // type iTree interface {
@@ -15,6 +15,9 @@ import (
 // 	print()
 // }
 
+//Regexp used in Tree.Add to find wildcard characters ('*') in input keys.
+var re_star *regexp.Regexp = regexp.MustCompile(`\*`)
+
 type Tree struct {
 	root *Node
 }
@@ -22,9 +25,9 @@ type Tree struct {
 //Each node stores an array of pointers to its childredn (child) and and array of characters
 //representing the edge connecting this node to its respective child.
 type Node struct {
-	// index_child []byte
-	child [128]*Node
-	value map[string]int
+	wildcard bool
+	child    [128]*Node
+	value    map[string]int
 }
 
 func (n *Node) add(k byte) (*Node, error) {
@@ -43,19 +46,25 @@ func (n *Node) add(k byte) (*Node, error) {
 //Return a *string of a .dot notation of this node and all its children
 //Node adresses are displayed in each node of the graph and keys are
 //displayed on the edges. For bievety the values of the nodes are not displayed
-func (n *Node) digraph() *string {
-	var s string
+func (n *Node) digraph() (*string, *string) {
+	var s, wildcards string
+
 	// if len(n.index_child) == 0 {
 	// 	log.Printf("Node %p has 0 children\n", n)
 	// }
 	// log.Printf("node %p has %d childred\n", &n, len(n.index_child))
+	if n.wildcard {
+		wildcards += fmt.Sprintf(" \"%p\"", n)
+	}
 	for i, child := range n.child {
 		if child != nil {
 			s += fmt.Sprintf("  \"%p\" -> \"%p\" [ label = \"%s\" ]; \n", n, child, string(i))
-			s += *child.digraph()
+			s_tmp, wildcards_tmp := child.digraph()
+			s += *s_tmp
+			wildcards += *wildcards_tmp
 		}
 	}
-	return &s
+	return &s, &wildcards
 }
 
 func (n *Node) String() string {
@@ -68,141 +77,128 @@ func New() *Tree {
 	return tree
 }
 
-func (t Tree) Add(key string, index string, value int) {
-	var next *Node
-	if key == "" {
-		return
+//Add a prefix and initialize the value map. addprefix is idempotent i.e. if the prefix
+//and/or the value map exist nothing will happen the tree t will remain unchanged
+//
+//TODO: what happens when you encounter an error mid flight during insertion of a key,
+//how do you remove the part of the key that was already inserted?
+func (t Tree) addprefix(prefix string) (*Node, error) {
+	// fmt.Printf("%s, %v\n", prefix, re_star.FindString(prefix[:len(prefix)-1]) != "")
+	if len(prefix) == 0 {
+		return nil, errors.New("prefix cannot be empty")
+	} else if re_star.FindString(prefix[:len(prefix)-1]) != "" {
+		return nil, errors.New("prefix cannot contain '*' except at the end")
 	}
 	n := t.root
 
-	for i := 0; i < len(key); i++ {
-
-		next = n.child[key[i]]
-		if next == nil {
-			next, _ = n.add(key[i])
-			// n.index_child = append(n.index_child, key[i])
-			// n.child = append(n.child, new(Node))
-			// next = n.child[len(n.child)-1]
+	for _, p := range prefix {
+		if p == '*' {
+			n.wildcard = true
+		} else {
+			if n.child[p] == nil {
+				n.child[p], _ = n.add(byte(p))
+			}
+			n = n.child[p]
 		}
-		n = next
+
 	}
-
-	// //if the last character of the key we are adding exists then the key
-	// //exiists and we should not add it
-	// next = n.next(key[len(key)-1])
-	// if next == nil {
-	// 	n = n.add(key[len(key)-1])
-	// } else {
-	// 	fmt.Printf("ERROR: key %s already exists with value %d\n", key, next.value)
-	// }
-
-	// for _, c := range key[:len(key)-1] {
-	// 	log.Printf("inserting %s into node %p (%T)\n", string(c), n, c)
-	// 	index := -1
-	// 	for i, k := range n.index_child {
-	// 		if k == byte(c) {
-	// 			index = i
-	// 			break
-	// 		}
-	// 	}
-	// 	if index == -1 {
-	// 		n.index_child = append(n.index_child, byte(c))
-	// 		// log.Printf("  New node: %p\n", &new_node)
-	// 		// log.Printf("  %s doesn't exist, inserting and adding new node %p\n", string(value[0]), &new_node)
-	// 		n.child = append(n.child, new(Node))
-	// 		// log.Printf("  child: %p\n", n.child[len(n.child)-1])
-	// 		// tree_insert(n.child[len(n.child)-1], value[1:])
-	// 		index = len(n.child) - 1
-	// 	} else {
-	// 		// log.Printf("  %s exists at %d, moving on...\n", string(value[0]), index)
-	// 		// tree_insert(n.child[index], value[1:])
-	// 	}
-	// 	n = n.child[index]
-	// }
 
 	if n.value == nil {
 		n.value = make(map[string]int)
 	}
-	n.value[index] = value
-	// fmt.Printf("key: %s: %v\n", key, n.value)
+
+	return n, nil
 }
 
-func (t Tree) Match(key string, index string) (int, error) {
+func (t Tree) SetKeys(prefix string, keys map[string]int) error {
+	n, err := t.addprefix(prefix)
+	if err != nil {
+		return err
+	}
+
+	n.value = keys
+
+	return nil
+}
+
+func (t Tree) AddKeys(prefix string, keys map[string]int) error {
+	n, err := t.addprefix(prefix)
+	if err != nil {
+		return err
+	}
+
+	for k, v := range keys {
+		n.value[k] = v
+	}
+
+	return nil
+}
+
+func (t Tree) AddKey(prefix string, key string, value int) error {
+
+	n, err := t.addprefix(prefix)
+	if err != nil {
+		return err
+	}
+
+	n.value[key] = value
+	// fmt.Printf("prefix: %s: %v\n", prefix, n.value)
+	return nil
+}
+
+func (t Tree) Match(prefix string, key string) (int, error) {
 	var wildcard *Node
 	n := t.root
 
-	for k := 0; n != nil && k < len(key); k++ {
-		if n.child['*'] != nil {
-			wildcard = n.child['*']
+	// fmt.Printf("prefix: %s, key: %s\n", prefix, key)
+	for p := 0; n != nil && p < len(prefix); p++ {
+		if n.wildcard {
+			wildcard = n // if a wildcard node is encountered along the path note it for checcking on later
 		}
-		n = n.child[key[k]]
-		// next := n.child[key[k]]
-		// if next != nil {
-		// 	n = next
-		// } else {
-		// 	n = n.child['*']
-		// 	break
-		// }
-
-		// // if next = n.next(key[i]); next == nil {
-		// index := -1
-		// for i, v := range n.index_child {
-		// 	if v == key[k] {
-		// 		index = i
-		// 		break
-		// 	}
-		// }
-
-		// if index == -1 {
-		// 	n = n.next('*')
-		// } else {
-		// 	n = n.child[index]
-		// }
-
-		// // if next == nil {
-		// // 	n = n.next('*')
-		// // 	break
-		// // }
-		// // n = next
+		n = n.child[prefix[p]]
+		// fmt.Printf("  p: %s\n", string(prefix[p]))
 	}
 
 	if n != nil {
-		v, exists := n.value[index]
+		v, exists := n.value[key]
 		if exists {
 			return v, nil
 		} else {
-			return 0, errors.New("index does not exist")
+			// fmt.Printf("Subjects: %v\n", n.value)
+			return 0, errors.New("key does not exist")
 		}
 	} else { // n == nil
 		if wildcard != nil {
-			v, exists := wildcard.value[index]
+			v, exists := wildcard.value[key]
 			if exists {
 				return v, nil // return value stored in wildcard node in the partially matching prefix
 			} else {
-				return 0, errors.New("index does not exist")
+				return 0, errors.New("key does not exist")
 			}
 		} else { // wildcard == nil
-			return 0, errors.New("Key does not match")
+			return 0, errors.New("prefix does not match")
 		}
 	}
+
+	return 0, nil
 }
 
-func (t Tree) Get(key string, index string) (int, error) {
+func (t Tree) Get(prefix string, key string) (int, error) {
 	n := t.root
 
-	for i := 0; n != nil && i < len(key); i++ {
-		n = n.child[key[i]]
+	for i := 0; n != nil && i < len(prefix); i++ {
+		n = n.child[prefix[i]]
 	}
 
 	if n != nil {
-		v, exists := n.value[index]
+		v, exists := n.value[key]
 		if exists {
 			return v, nil
 		} else {
-			return 0, errors.New("index does not exist")
+			return 0, errors.New("key does not exist")
 		}
 	} else {
-		return 0, errors.New("Key does not exist")
+		return 0, errors.New("prefix does not exist")
 	}
 
 }
@@ -210,8 +206,13 @@ func (t Tree) Get(key string, index string) (int, error) {
 func (t Tree) Digraph() *string {
 	var s string
 
-	s = fmt.Sprintf("digraph G {\n")
-	s += *t.root.digraph()
+	nodes, wildcards := t.root.digraph()
+	if len(*wildcards) > 0 {
+		s = fmt.Sprintf("digraph G {\n  size=\"8,5\"\n  node [shape = doublecircle];%s;\n  node [shape = circle];\n", *wildcards)
+	} else {
+		s = fmt.Sprintf("digraph G {\n  size=\"8,5\"\n  node [shape = circle];\n")
+	}
+	s += *nodes
 	s += fmt.Sprintf("}\n")
 
 	return &s

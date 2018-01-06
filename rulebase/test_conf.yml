@@ -2,11 +2,17 @@
 title: "This is a test rulebase"
 
 rules:
-  - Subject: Jim
+  - Url: www.corpA.com/*
+    ACL: 
+      Jim: [GET,POST]
+      John: [GET, POST]
+  - Url: www.corpA.com/admin
     ACL:
-      www.corpA.com/*: allow
-      www.corpA.com/admin: deny
-  - Subject: John
+      Jim: [GET,POST]
+      John: [GET]
+  - Url: www.public.org/*
     ACL:
-      www.corpA.com/*: allow
-      www.corpA.com/admin: deny
+      anonymous: [GET]
+  - Url: www.public.org/secret*
+    ACL:
+      anonymous: []
