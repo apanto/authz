@@ -31,7 +31,7 @@ rules:
     ACL:
       anonymous: []`
 
-const invalid_test_conf = `---
+const invalid_test_conf1 = `---
 title: "This is a test rulebase"
 
 rules:
@@ -39,6 +39,25 @@ rules:
     ACL:
       Jim: [GET,POST]
       John: [GET]
+  - Url: www.corpA.com/admin
+    ACL:
+      Jim: [GET,POST]
+      John: [GET]
+  - Url: www.public.org/*
+    ACL:
+      anonymous: [GET]
+  - Url: www.public.org/secret*
+    ACL:
+      anonymous: []`
+
+const invalid_test_conf2 = `---
+title: "This is a test rulebase"
+
+rules:
+  - Url: www.corpA.com/*
+    ACL:
+      Jim: [GET,POST]
+      John: allow
   - Url: www.corpA.com/admin
     ACL:
       Jim: [GET,POST]
@@ -125,13 +144,14 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+//TODO: Test with invalid_test_conf2 file seg faults and halts the tests. How can this be avoided?
 func TestCreaterulebaseWithInvalidConfig(t *testing.T) {
 	var err error
-
 	config_filename := "./tmp_conf.yml"
-	err = ioutil.WriteFile(config_filename, []byte(invalid_test_conf), 0644)
+
+	err = ioutil.WriteFile(config_filename, []byte(invalid_test_conf1), 0644)
 	if err != nil {
-		t.Fatalf("Can't read config file %s", config_filename)
+		t.Fatalf("Can't write config file %s", config_filename)
 	}
 
 	conf, err := Readconfig(config_filename)
@@ -140,8 +160,22 @@ func TestCreaterulebaseWithInvalidConfig(t *testing.T) {
 	}
 	test_tree_rb, err = Create(conf)
 	if err == nil {
-		t.Error("Readconfig() didn't fail with invalid config file")
+		t.Error("Create() didn't fail with invalid config file 1 (URL containing `*` not at the end)")
 	}
+
+	// err = ioutil.WriteFile(config_filename, []byte(invalid_test_conf2), 0644)
+	// if err != nil {
+	// 	t.Fatalf("Can't write config file %s", config_filename)
+	// }
+
+	// conf, err = Readconfig(config_filename)
+	// if err != nil {
+	// 	t.Error(err)
+	// }
+	// test_tree_rb, err = Create(conf)
+	// if err == nil {
+	// 	t.Error("Create() didn't fail with invalid config file 2 (invalid access flags)")
+	// }
 
 }
 
@@ -181,7 +215,7 @@ func TestInsertLookupTree(t *testing.T) {
 	subject := "John"
 	url := "www.corpA.com/home"
 
-	val, err := TreeLookup(subject, url, test_tree_rb)
+	val, err := Lookup(subject, url, test_tree_rb)
 	if err != nil {
 		t.Fatalf("Error %s\n", err)
 	}
@@ -192,7 +226,7 @@ func TestInsertLookupTree(t *testing.T) {
 	subject = "anonymous"
 	url = "www.corpA.com/"
 
-	val, err = TreeLookup(subject, url, test_tree_rb)
+	val, err = Lookup(subject, url, test_tree_rb)
 	if err.Error() != "key does not exist" {
 		t.Fatalf("This should fail to find the subject %s, but failed with error: %s\n", subject, err)
 	}
@@ -203,7 +237,7 @@ func TestInsertLookupTree(t *testing.T) {
 	subject = "anonymous"
 	url = "www.public.org/main"
 
-	val, err = TreeLookup(subject, url, test_tree_rb)
+	val, err = Lookup(subject, url, test_tree_rb)
 	if err != nil {
 		t.Fatalf("Error %s\n", err)
 	}
@@ -214,7 +248,7 @@ func TestInsertLookupTree(t *testing.T) {
 	subject = "anonymous"
 	url = "www.public.org/secret"
 
-	val, err = TreeLookup(subject, url, test_tree_rb)
+	val, err = Lookup(subject, url, test_tree_rb)
 	if err != nil {
 		t.Fatalf("Error %s\n", err)
 	}
@@ -315,13 +349,12 @@ func BenchmarkLookupTree(b *testing.B) {
 
 	// fmt.Printf("longest url has %d chars, avg url length is %d\n", l, avg/len(urls))
 
-	TreeLookup("fwgrgerwghwe", url, rb_tree)
+	Lookup("fwgrgerwghwe", url, rb_tree)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		// TreeLookup(subject, urls[i%len(urls)], rb_tree)
-		TreeLookup(subject, urls[i%len(urls)], rb_tree)
+		Lookup(subject, urls[i%len(urls)], rb_tree)
 	}
 
 }

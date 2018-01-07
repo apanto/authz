@@ -4,9 +4,6 @@ import (
 	"authz/prefixtree"
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v2"
-	// "encoding/json"
-	"io/ioutil"
 )
 
 const (
@@ -27,43 +24,11 @@ type Rule struct {
 	ACL map[string][]string `yaml:"ACL"`
 }
 
-type Config struct {
-	Title string `yaml:"Title,omitempty"`
-	Rules []Rule
-}
-
-//Read a configuration file in YAML format. Example:
-// ---
-// Title: "This is a test rulebase"
-//
-// rules:
-//   - Url: www.corpA.com/*
-//     ACL:
-//       Jim: allow
-//       John: allow
-//   - Url: www.corpA.com/admin
-//     ACL:
-//       Jim: deny
-//       John: allow
-func Readconfig(filename string) (*Config, error) {
-	var conf Config
-	f, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	err = yaml.Unmarshal(f, &conf)
-	if err != nil {
-		return nil, err
-	}
-
-	return &conf, nil
-}
-
-func Create(conf *Config) (*prefixtree.Tree, error) {
+//Creates a rulebase from an array of "Rules"
+func Create(rules *[]Rule) (*prefixtree.Tree, error) {
 	tree := prefixtree.New()
 
-	for _, r := range conf.Rules {
+	for _, r := range *rules {
 		for subject, access := range r.ACL {
 			// fmt.Printf("user: %s -> url: %s access(%T): %s\n", subject, r.Url, access, access)
 			access_flags := 0
@@ -96,7 +61,7 @@ func Create(conf *Config) (*prefixtree.Tree, error) {
 }
 
 //TODO: make default access policy configurable
-func TreeLookup(subject string, url string, rb *prefixtree.Tree) (int, error) {
+func Lookup(subject string, url string, rb *prefixtree.Tree) (int, error) {
 	v, err := rb.Match(url, subject)
 	if err != nil {
 		if err.Error() == "index does not exist" {
@@ -109,10 +74,10 @@ func TreeLookup(subject string, url string, rb *prefixtree.Tree) (int, error) {
 	return v, nil
 }
 
-func Maprulebase(conf *Config) (map[string]map[string]int, error) {
+func Maprulebase(rules *[]Rule) (map[string]map[string]int, error) {
 	rb := make(map[string]map[string]int)
 
-	for _, r := range conf.Rules {
+	for _, r := range *rules {
 		m := make(map[string]int)
 		for subject, access := range r.ACL {
 			// fmt.Printf("user: %s -> url: %s access: %s\n", subject, r.Url, access_flags)
