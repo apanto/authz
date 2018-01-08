@@ -146,6 +146,33 @@ func (t Tree) AddKey(prefix string, key string, value int) error {
 	return nil
 }
 
+//Only matches the prefix. On success returns the key map
+func (t Tree) MatchPrefix(prefix string) (map[string]int, error) {
+	var wildcard *Node
+	n := t.root
+
+	// fmt.Printf("prefix: %s, key: %s\n", prefix, key)
+	for p := 0; n != nil && p < len(prefix); p++ {
+		if n.wildcard {
+			wildcard = n // if a wildcard node is encountered along the path note it for checcking on later
+		}
+		n = n.child[prefix[p]]
+		// fmt.Printf("  p: %s\n", string(prefix[p]))
+	}
+
+	if n != nil {
+		return n.value, nil
+	} else { // n == nil
+		if wildcard != nil {
+			return wildcard.value, nil
+		} else { // wildcard == nil
+			return nil, errors.New("prefix does not match")
+		}
+	}
+
+	// return 0, nil
+}
+
 func (t Tree) Match(prefix string, key string) (int, error) {
 	var wildcard *Node
 	n := t.root
